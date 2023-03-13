@@ -1,52 +1,222 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
-typedef struct 
-{
-    float *Xi;  //Posicion
-    float *Vi;  //Velocidad
-    float *Pi;  //Mejor Posicion
-    float fit; //Valor de l fitnes
-}PARTUCLA;
+//ESTRUCTURAS DEL PSO
+typedef struct { float   *Xi;//Posicion
+                 float   *Vi;//Velocidad
+                 float   *Pi;//Mejor Posicion Historica
+                 float  Xfit; //Valor de Fitnes para la posicion actual
+                 float  Pfit; //Valor de Fitnes para la Mejor Posicion
+                }PARTICULA;
 
-typedef struct 
-{
-    PARTUCLA *Part;
-    unsigned int size;
-    unsigned int IdPg; 
+typedef struct{ PARTICULA    *Part;
+                unsigned int NumPart;
+                unsigned int NumParam;
+                unsigned int IdPg;
+                unsigned int NumMaxIter;
+                float C1;
+                float C2;
+                float *LimSup;
+                float *LimInf;
+               }ENJAMBRE;
 
-}ENJAMBRE;
+//PARAMETROS DE CONFIGURACION DEL PSO
+#define DIM_ 2
+const unsigned int NumeroParticulas = 5; //Tamaño del enjambre, numero de particulas del enjambre
+const unsigned int Dimension=DIM_; //Numero de variables del problema o dimension del problema.
+const float LimiteSuperior[DIM_] = { 20, 20};
+const float LimiteInferior[DIM_] = {-20, -20};
+const unsigned int NumeroMaximoDeIteraciones = 1;
 
-const unsigned int NumeroDeParticulas = 10;     //tamaño del enjambre , numero de particulas.
-const unsigned int Dimencion = 2;               //Numero de variables del prombelma o dimencionalidad del problema.
-const float LimiteSuperior[2] = { 10, 10};
-const float LimiteInferior[2] = {-10,-10};
-const unsigned int NumeroMaximoDeIteracions = 100;
+ENJAMBRE* CrearEnjambre(unsigned int NumPart,unsigned int NumParam);
+void InicializarEnjambre(ENJAMBRE *Enj, float C1, float C2, unsigned int NumIterMax,const float *LInf,const float *LSup);
+void EliminarEnjambre(ENJAMBRE *Enj);
+void ImprimeParticula(ENJAMBRE *Enj, unsigned int Id);
+void ImprimeEnjambre(ENJAMBRE *Enj);
+void EvualarEnjambre(ENJAMBRE *Enj);
+void EvaluacionInicialEnjambre(ENJAMBRE *Enj);
+void ActualizarMejoresPosiciones(ENJAMBRE *Enj);
+void ActualizarVelocidad(ENJAMBRE *Enj);
+void ActualizarPosicion(ENJAMBRE *Enj);
+float FuncionObjetivo(float *Xi);
 
-ENJAMBRE* CrearEnjambre(unsigned int NumPart, unsigned int dim);
-
-int main(){
+int main(){ 
     ENJAMBRE *Enj;
+    unsigned int t=1;
+    //Crear un enjambre de NumeroParticulas de Numero de parametros igual a Dimension
+    Enj=CrearEnjambre(NumeroParticulas,Dimension);
+    printf("\nSe creo el ENJAMBRE");
+    InicializarEnjambre(Enj,2.0,2.0,NumeroMaximoDeIteraciones,LimiteInferior,LimiteSuperior);
+    EvaluacionInicialEnjambre(Enj);
+    ImprimeEnjambre(Enj);
+    while (t<Enj->NumMaxIter)
+    {
+        printf("\nIteracones %i",t);
+        ActualizarVelocidad(Enj);
+        ActualizarPosicion(Enj);
+        EvualarEnjambre(Enj);
+        ActualizarMejoresPosiciones(Enj);
+        ImprimeEnjambre(Enj);
+        t++;
+    }
 
-    Enj = CrearEnjambre(NumeroDeParticulas, Dimencion);
-    
+    printf("\n\n|best particle|");
+    ImprimeParticula(Enj, Enj->IdPg);
+    EliminarEnjambre(Enj);
+    printf("\nSe elimino el ENJAMBRE");
     return 0;
 }
 
-ENJAMBRE* CrearEnjambre(unsigned int NumPart, unsigned int dim){
-    ENJAMBRE *ptr;
+void ActualizarMejoresPosiciones(ENJAMBRE *Enj){
+    for(unsigned int i=0; i<Enj->NumPart; i++)
+    {
+        if(Enj->Part[i].Xfit > Enj->Part[i].Pfit)
+        {
+            Enj->Part[i].Pfit = Enj->Part[i].Xfit;
+            for(unsigned int j=0; j<Enj->NumParam; j++){
+                Enj->Part[i].Pi[j] = Enj->Part[i].Xi[j];
+            }
+        }
+    }
+}
 
-    ptr=(ENJAMBRE *)malloc(sizeof(ENJAMBRE));                                   //reservar la memoria para la estructura del enjambre
-    if(ptr==NULL){                                                              //comprobrar si se reservo la memoria dinamica
-        printf("\n|ERROR| al resevar la memoria para la estructura ENJAMBRE.");
-        exit(0);                                                                //en cado de que no este termina el proceso
-    } else { printf("\n|CORECTO| memoria asignada para la estructura ENJAMBRE.");}
-    ptr->size = NumPart;
-    ptr->IdPg = 0;
-    ptr->Part = (PARTUCLA *)malloc(NumPart*sizeof(PARTUCLA));                //reservar la meoria para N particulas de dimencion Dim
-    if(ptr->Part == NULL){
-        printf("\n|ERROR| al resevar la memoria para la estructura PARTICULA dentro de ENJAMBRE.");
+void EvualarEnjambre(ENJAMBRE *Enj){
+    float aux, BestFit;
+    //calcular el valor de fitess de cada particula
+    BestFit = FuncionObjetivo(Enj->Part[0].Xi);
+    for(int i=0; i<Enj->NumPart; i++){
+        Enj->Part[i].Xfit = FuncionObjetivo(Enj->Part[i].Xi);
+
+        //alamacena el mejor indice de la mejor particula de todo el enjambre
+        if(Enj->Part[i].Xfit>BestFit){
+            BestFit=Enj->Part[i].Xfit;
+            Enj->IdPg = i;
+        }
+    }
+}
+
+void ActualizarPosicion(ENJAMBRE *Enj){
+    for(unsigned int i=0; i<Enj->NumPart; i++) //Para cada particula i
+    for(unsigned int j=0; j<Enj->NumParam; j++) //Para cada parametro j de cada vector de la particula i
+    { 
+        Enj->Part[i].Xi[j] += Enj->Part[i].Vi[j];
+    }
+}
+
+void ActualizarVelocidad(ENJAMBRE *Enj){
+    float Y1, Y2;
+    for(unsigned int i=0; i<Enj->NumPart; i++) //Para cada particula i
+    for(unsigned int j=0; j<Enj->NumParam; j++) //Para cada parametro j de cada vector de la particula i
+    { 
+        Y1 = (float)rand()/RAND_MAX;
+        Y2 = (float)rand()/RAND_MAX;
+        //formula de la veloidad
+        Enj->Part[i].Vi[j] += (Enj->C1*Y1*(Enj->Part[i].Pi[j] - Enj->Part[i].Xi[j]) + Enj->C2*Y2*(Enj->Part[Enj->IdPg].Pi[j] - Enj->Part[i].Xi[j]));  
+    }
+}
+
+float FuncionObjetivo(float *Xi){
+    float fit;
+    /*Maximisar la siguiente funcion f(x,y)=50-(x-5)^2-(y-5)^2*/
+    fit = 50 - pow(Xi[0]-5, 2) - pow(Xi[1]-5, 2);
+    return fit;
+}
+
+void EvaluacionInicialEnjambre(ENJAMBRE *Enj){
+    float aux, BestFit;
+    //calcular el valor de fitess de cada particula
+    BestFit = FuncionObjetivo(Enj->Part[0].Xi);
+    for(int i=0; i<Enj->NumPart; i++){
+        aux = FuncionObjetivo(Enj->Part[i].Xi);
+        Enj->Part[i].Xfit=aux;
+        Enj->Part[i].Pfit=aux;
+        //alamacena el mejor indice de la mejor particula de todo el enjambre
+        if(aux>BestFit){
+            BestFit=aux;
+            Enj->IdPg = i;
+        }
+    }
+}
+
+
+void ImprimeEnjambre(ENJAMBRE *Enj)
+{ for(unsigned int i=0; i<Enj->NumPart; i++) //Para cada particula i
+      { printf("\n\nParticula[%i]:",i);
+        ImprimeParticula(Enj,i);
+      }
+}
+void ImprimeParticula(ENJAMBRE *Enj, unsigned int Id)
+    { 
+        printf("\nXi: ");
+        for(unsigned int i=0; i<Enj->NumParam; i++)
+            printf("%f, ",Enj->Part[Id].Xi[i]);
+        printf("\nVi: ");  
+        for(unsigned int i=0; i<Enj->NumParam; i++)
+            printf("%f, ",Enj->Part[Id].Vi[i]);
+        printf("\nPi: ");      
+        for(unsigned int i=0; i<Enj->NumParam; i++)
+            printf("%f, ",Enj->Part[Id].Pi[i]);
+        printf("\nXfit=%f",Enj->Part[Id].Xfit);
+        printf("\nPfit=%f",Enj->Part[Id].Pfit);
+      }
+
+void InicializarEnjambre(ENJAMBRE *Enj, float C1, float C2, unsigned int NumIterMax,const float *LInf, const float *LSup)
+{ float aux,rango;
+  Enj->C1=C1;
+  Enj->C2=C2;
+  Enj->NumMaxIter=NumIterMax;
+  Enj->IdPg=0;
+  Enj->LimSup=LSup;
+  Enj->LimInf=LInf;
+  //Inicializar cada vector de cada particula
+  for(unsigned int i=0; i<Enj->NumPart; i++) //Para cada particula i
+  for(unsigned int j=0; j<Enj->NumParam; j++) //Para cada parametro j de cada vector de la particula i
+     { rango=Enj->LimSup[j]-Enj->LimInf[j];
+       aux= ((float)rand()/RAND_MAX) * rango + Enj->LimInf[j];
+       Enj->Part[i].Xi[j]=aux;
+       Enj->Part[i].Vi[j]=0;
+       Enj->Part[i].Pi[j]=aux;
+      }
+}
+
+void EliminarEnjambre(ENJAMBRE* Enj)
+{ //Liberar la memoria para de los 3 vectores de cada Particula
+  for(unsigned int i=0; i<Enj->NumPart; i++)
+     { free(Enj->Part[i].Xi);
+       free(Enj->Part[i].Vi);
+       free(Enj->Part[i].Pi);
+     }
+  //Liberar la memoria de las estructuras particula
+  free(Enj->Part);
+  //Liberar la memoria de la estrcutura del enajmbre
+  free(Enj);   
+}
+
+ENJAMBRE* CrearEnjambre( unsigned int NumPart,unsigned int NumParam){ 
+    ENJAMBRE *ptr;
+    //Reservar la memoria para la estructura del enjambre
+    ptr=(ENJAMBRE *)malloc(sizeof(ENJAMBRE));
+    if(ptr==NULL){ 
+        printf("|ERROR| al reservar la memoria para la estructura ENJAMBRE.");
         exit(0);
-    } else { printf("\n|CORECTO| memoria asignada para la estructura PARTICULA dentro de ENJAMBRE.");}
+    }else {
+        printf("|CORRECTO| Se reservo la memoria para la estructura ENJAMBRE.");
+    }
+    ptr->NumPart=NumPart;
+    ptr->NumParam=NumParam;
+
+    //Reservar la memoria para N particulas de M parametros
+    ptr->Part=(PARTICULA *)malloc(NumPart*sizeof(PARTICULA));
+    if(ptr->Part==NULL){
+        printf("Error al reservar la memoria para las Particulas.");
+        exit(0);
+    } 
+    //Reservar memoria para los 3 vectores de cada Particula
+    for(unsigned int i=0; i<NumPart; i++){ 
+        ptr->Part[i].Xi=(float *)malloc(NumParam*sizeof(float));
+        ptr->Part[i].Vi=(float *)malloc(NumParam*sizeof(float));
+        ptr->Part[i].Pi=(float *)malloc(NumParam*sizeof(float));
+    }  
     return ptr;
 }
