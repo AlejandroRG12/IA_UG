@@ -21,7 +21,7 @@ typedef struct{
 	float C2;
 	const float *limSup;
 	const float *limInf;
-	float W;//factor de velocidad
+	float X;//factor de velocidad
 }ENJAMBRE;
 
 
@@ -36,7 +36,7 @@ const float limInf[DIM_] = {-5.12, -5.12};
 const unsigned int IteracionesMaximas = 200;
 
 ENJAMBRE* CrearEnjambre(unsigned int NumPart, unsigned int NumParam);
-void InicializarEnjambre(ENJAMBRE* enj, float W, float C1, float C2, unsigned int NumIterMax, const float *LInf, const float *LSup);
+void InicializarEnjambre(ENJAMBRE* enj, float X, float C1, float C2, unsigned int NumIterMax, const float *LInf, const float *LSup);
 void EliminarEnjambre(ENJAMBRE* enj);
 void imprimeParticula(ENJAMBRE* enj, unsigned int Id);
 void imprimeEnjambre(ENJAMBRE* enj);
@@ -55,7 +55,7 @@ int main(){
 	int it = 0;
 	ENJAMBRE *Enj;
 	Enj =  CrearEnjambre(NParticulas, Dimension);
-	InicializarEnjambre(Enj, 0.3, 2.0, 2.0, IteracionesMaximas, limInf, limSup);
+	InicializarEnjambre(Enj, 0.72984, 2.5, 2.5, IteracionesMaximas, limInf, limSup);
 	//imprimeEnjambre(Enj);
 	//printf("\n");
 	EvaluarEnjambreIni(Enj);
@@ -102,9 +102,9 @@ void ActualizarVelocidad(ENJAMBRE *enj){
 		for(unsigned int j=0; j<enj->NumParam; j++){
 			Y1 = (float)rand()/RAND_MAX;
 			Y2 = (float)rand()/RAND_MAX;
-			enj->Part[i].Vi[j] = (enj->Part[i].Vi[j]*enj->W) +
+			enj->Part[i].Vi[j] = enj->X * ((enj->Part[i].Vi[j]) +
 								 (enj->C1 * Y1 * (enj->Part[i].Pi[j] - enj->Part[i].Xi[j])) + 
-								 (enj->C2 * Y2 *(enj->Part[enj->IdPg].Pi[j] - enj->Part[i].Xi[j]));
+								 (enj->C2 * Y2 *(enj->Part[enj->IdPg].Pi[j] - enj->Part[i].Xi[j])));
 			
 		}
 }
@@ -185,7 +185,7 @@ void imprimeEnjambre(ENJAMBRE* enj){
 	imprimeParticula(enj, enj->IdPg);
 }
 
-void InicializarEnjambre(ENJAMBRE* enj, float W, float C1, float C2, unsigned int NumIterMax, const float *LInf, const float *LSup){
+void InicializarEnjambre(ENJAMBRE* enj, float X, float C1, float C2, unsigned int NumIterMax, const float *LInf, const float *LSup){
 	float aux;
 	enj->C1 = C1;
 	enj->C2 = C2;
@@ -193,7 +193,7 @@ void InicializarEnjambre(ENJAMBRE* enj, float W, float C1, float C2, unsigned in
 	enj->IdPg = 0;
 	enj->limInf = LInf;
 	enj->limSup = LSup;
-	enj->W = W;
+	enj->X = X;
 
 	//Inicializar cada vector de cada particula
 	for(unsigned int i=0; i<enj->NumPart; i++){
