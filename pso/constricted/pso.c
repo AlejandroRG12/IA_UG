@@ -258,6 +258,5 @@ ENJAMBRE* CrearEnjambre(unsigned int NumPart, unsigned int NumParam){
 			exit(0);
 		}
 	}
-
 	return ptr;
 }

@@ -23,6 +23,7 @@ typedef struct{
         float               *ValR;
         const float         *LimSup;
         const float         *LimInf;
+
 }INDIVIDUO;
 
 typedef struct {
@@ -43,6 +44,9 @@ void ShowIndividuo(AGS *pAG, unsigned int Id);
 void ShowPoblacion(AGS *pAG);
 void DecodeEntero(AGS *p);
 void ShowEntero(INDIVIDUO *p, unsigned int NdGens_);
+void DecodeReal(AGS *p);
+void showReal(INDIVIDUO *p, unsigned int NdGens_);
+void obj2fit(AGS *p);
 /* void DecodeEntero(INDIVIDUO *p);
 void ShowDecodeEntero(INDIVIDUO *p);
 void DecodeReal(INDIVIDUO *p); */
@@ -161,11 +165,39 @@ void DecodeEntero(AGS *p){
     }
 }
 
+// Esta funcion calcula el valor real de cada individuo de la poblacion
+void DecodeReal(AGS *p){
+    float rango;
+    int i,k,Inicio =0;
+    for(i=0;i<p->PobSize;i++){
+        for(k = 0; k < p->NdGens; k++){
+            p->pob[i].ValE[k] = 0;
+            for(int j = Inicio; j < (p->NdBxGen[k]+ Inicio); j++){
+                p->pob[i].ValE[k] += pow(2,j-Inicio) * p->pob[i].Cromosoma[j];
+            }
+            Inicio += p->NdBxGen[k];
+        }
+    }
+    for(i=0;i<p->PobSize;i++){
+        for(k = 0; k < p->NdGens; k++){
+            rango = p->LimSup[k] - p->LimInf[k];
+            p->pob[i].ValR[k] = (p->pob[i].ValE[k] / (pow(2, p->NdBxGen[k]) - 1)) * rango + p->LimInf[k];
+        }
+    }
+}
+
 void ShowEntero(INDIVIDUO *p, unsigned int NdGens_){
     int k;
     printf(" - ");
     for(k=NdGens_-1; k>=0; k--)
         printf("%d ", p->ValE[k]);
+}
+
+void showReal(INDIVIDUO *p, unsigned int NdGens_){
+    int k;
+    printf(" - ");
+    for(k=NdGens_-1; k>=0; k--)
+        printf("%f ", p->ValR[k]);
 }
 
 
