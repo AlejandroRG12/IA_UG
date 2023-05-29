@@ -7,17 +7,17 @@ Algoritmo Genetico Simple
 #include<math.h>
 
 #define NumGenes_ 2
-const unsigned int PoblacionSize = 10;
+const unsigned int MaxdeGeneraciones = 100;
+const unsigned int PoblacionSize = 20;
 const int NumGenes = NumGenes_;
-const int NumBitPorGen[NumGenes_] = {8, 8};
+const int NumBitPorGen[NumGenes_] = {16, 16};
 const float limsSup[NumGenes_] = { 10, 10};
 const float limsInf[NumGenes_] = {-10, -10};
 const float ProbCruza_ = 0.8;
 const float ProbMuta_ = 0.001;
-const unsigned int NumMaxGeneraciones = 3;
-
 typedef unsigned char BYTE;
 typedef enum{MAX, MIN}TIPO_OPT;
+
 typedef struct{
 	BYTE *Cromosoma;
 	int *ValE;
@@ -42,10 +42,10 @@ typedef struct{
 	float PromFit;
 	float ProbCruza;
 	float ProbMuta;
-
+	unsigned int NumMaxGenerations;
 }AGS;
 
-AGS InicializarAGS(unsigned int PobSize, unsigned int NoGens, const unsigned int* BpG, const float *Lim_inf, const float *Lim_sup, const float ProbCruza, const float ProbMuta, unsigned int NumMaxGeneraciones);
+AGS InicializarAGS(unsigned int PobSize, unsigned int NoGens, const unsigned int* BpG, const float *Lim_inf, const float *Lim_sup, const float ProbCruza, const float ProbMuta, unsigned int MaxGeneraciones);
 void EliminarAGS(AGS ag);
 void DecodeEntero(AGS* p);
 void DecodeReal(AGS* p);
@@ -60,36 +60,61 @@ void Obj2Fit(AGS* pAG, TIPO_OPT tipo);
 void SeleccionRuleta(AGS* pAG);
 void Cruza1P(AGS *pAG);
 void MutacionBit(AGS *pAG);
+void NextGeneration(AGS *pAG);
 
-void NextGenerations(AGS *pAG);
+void Elitismo(AGS *pAG);
 
 int main(){
-	time_t tx;
-	srand((unsigned) time(&tx));
-	AGS ga = InicializarAGS(PoblacionSize, NumGenes, NumBitPorGen, limsInf, limsSup, ProbCruza_, ProbMuta_, NumMaxGeneraciones);
+	//time_t tx;
+	unsigned int generacion = 1;
+
+	//srand((unsigned) time(&tx));
+
+	AGS ga = InicializarAGS(PoblacionSize, NumGenes, NumBitPorGen, limsInf, limsSup, ProbCruza_, ProbMuta_, MaxdeGeneraciones);
 	DecodeReal(&ga);
 	DecodeEntero(&ga);
 	EvaluarPoblacion(&ga);
 	Obj2Fit(&ga, MAX);
+	ShowPob(&ga);
+
+    while(generacion < ga.NumMaxGenerations){
+        generacion++;
+        SeleccionRuleta(&ga);
+        Cruza1P(&ga);
+        MutacionBit(&ga);
+		Elitismo(&ga);
+		
+        NextGeneration(&ga);
+        DecodeReal(&ga);
+        EvaluarPoblacion(&ga);
+        Obj2Fit(&ga, MAX);
+        printf("Generacion %d...\n", generacion);
+        ShowPob(&ga);
+    }
+
+	printf("\nObj = %f \n", ga.Pob[ga.IdBest].VObj);
+    printf("\n");
+	printf("MaxdeGeneraciones: %d || PoblacionSize: %d", MaxdeGeneraciones, PoblacionSize);
+
+	//liberar la memtoria
+    EliminarAGS(ga);
 	
 
-	ShowPob(&ga);
-	SeleccionRuleta(&ga);
-	Cruza1P(&ga);
-	MutacionBit(&ga);
-	NextGenerations(&ga);
-	EvaluarPoblacion(&ga);
-	EliminarAGS(ga);
-	printf("\n");
-
-	return 0;
+    return 0;
 }
 
-void NextGenerations(AGS *pAG){
-	INDIVIDUO *aux;
-	aux = pAG->Pob;
-	pAG->Pob = pAG->NewPob;
-	pAG->NewPob = aux;
+void Elitismo(AGS *pAG){
+	for(int k=0; k<pAG->CromSize; k++){
+		pAG->NewPob[0].Cromosoma[k]=pAG->Pob[pAG->IdBest].Cromosoma[k];
+	}
+}
+
+void NextGeneration(AGS *pAG){
+    INDIVIDUO *aux;
+
+    aux = pAG->Pob;
+    pAG->Pob = pAG->NewPob;
+    pAG->NewPob = aux;
 }
 
 void MutacionBit(AGS *pAG){
@@ -180,27 +205,41 @@ void SeleccionRuleta(AGS* pAG){
 void Obj2Fit(AGS *pAG, TIPO_OPT tipo){
 	float min = pAG->Pob[pAG->IdWorst].VObj;
 	float max = pAG->Pob[pAG->IdBest].VObj - min;
+	float dif;
 	pAG->TotalFitnes = 0;
-	if(tipo == MAX){
-		for(int i=0; i<pAG->PobSize; i++){
-			pAG->Pob[i].Fit = 100*((pAG->Pob[i].VObj - min)/max);
-			pAG->TotalFitnes += pAG->Pob[i].Fit;
-			if(pAG->Pob[i].Fit >= pAG->Pob[pAG->IdBest].Fit)
-				pAG->IdBest = i;
-			if(pAG->Pob[i].Fit <= pAG->Pob[pAG->IdWorst].Fit)
-				pAG->IdWorst = i;
-		}
-	} else if(tipo == MIN){
+
+    dif = abs(pAG->Pob[pAG->IdBest].VObj - pAG->Pob[pAG->IdWorst].VObj);
+	if(dif < 0.0000001){
+        printf("\nConvergencia del algoritmo ahora todos son iguales");
 		for(int i=0; i<pAG->PobSize; i++){
 			pAG->Pob[i].Fit = -100*((pAG->Pob[i].VObj - min)/max)+100;
-			pAG->TotalFitnes += pAG->Pob[i].Fit;
-			if(pAG->Pob[i].Fit >= pAG->Pob[pAG->IdBest].Fit)
-				pAG->IdBest = i;
-			if(pAG->Pob[i].Fit <= pAG->Pob[pAG->IdWorst].Fit)
-				pAG->IdWorst = i;
+            pAG->TotalFitnes += pAG->Pob[i].Fit;
+			pAG->PromFit = pAG->TotalFitnes/pAG->PobSize;
 		}
 	}
-	pAG->PromFit = pAG->TotalFitnes/pAG->PobSize;
+
+	else{
+        if(tipo == MAX){
+            for(int i=0; i<pAG->PobSize; i++){
+                pAG->Pob[i].Fit = 100*((pAG->Pob[i].VObj - min)/max);
+                pAG->TotalFitnes += pAG->Pob[i].Fit;
+                if(pAG->Pob[i].Fit >= pAG->Pob[pAG->IdBest].Fit)
+                    pAG->IdBest = i;
+                if(pAG->Pob[i].Fit <= pAG->Pob[pAG->IdWorst].Fit)
+                    pAG->IdWorst = i;
+            }
+        } else if(tipo == MIN){
+            for(int i=0; i<pAG->PobSize; i++){
+                pAG->Pob[i].Fit = -100*((pAG->Pob[i].VObj - min)/max)+100;
+                pAG->TotalFitnes += pAG->Pob[i].Fit;
+                if(pAG->Pob[i].Fit >= pAG->Pob[pAG->IdBest].Fit)
+                    pAG->IdBest = i;
+                if(pAG->Pob[i].Fit <= pAG->Pob[pAG->IdWorst].Fit)
+                    pAG->IdWorst = i;
+                }
+            }
+            pAG->PromFit = pAG->TotalFitnes/pAG->PobSize;
+        }
 }
 
 void EvaluarPoblacion(AGS * pAG){
@@ -218,7 +257,8 @@ void EvaluarPoblacion(AGS * pAG){
 
 float FuncionObjetivo(float *Vr){
 	float obj;
-	obj = 50 - pow(Vr[0]+5,2)-pow(Vr[1]+5,2);
+	//obj = 50 - pow(Vr[0]+5,2)-pow(Vr[1]+5,2);
+	obj = 10*exp((-1*(pow(Vr[0]+1,2)+pow(Vr[1]-3.14,2)))/25)+cos(2*Vr[0]) + sin(2*Vr[1]);
 	return obj;
 }
 
@@ -227,14 +267,14 @@ void ShowReal(INDIVIDUO* p, unsigned int NdGens){
     for ( int k = NdGens-1; k >=0 ; k--)
     {
         printf("%f,", p->ValR[k]);
-    }   
+    }
 }
 
 void DecodeReal(AGS *p){
     float rango;
     int ini = 0;
     // i es el indice para recorrer todos los genes de un individuo
-        // k es el indice ára recorrer todos los bits de un gen
+        // k es el indice �ra recorrer todos los bits de un gen
 	for(int i=0; i<p->PobSize; i++){
 		ini = 0;
 		for(int j = 0; j<p->NdGens; j++){
@@ -249,7 +289,7 @@ void DecodeReal(AGS *p){
 			p->Pob[i].ValR[j]=p->Pob[i].ValE[j]/(pow(2,p->NdBxGens[j])-1) * rango+p->limInf[j];
 		}
 	}
-    
+
 }
 
 void DecodeEntero(AGS *p){
@@ -301,7 +341,7 @@ void ShowIndividuo(AGS *pAG, unsigned int id){
 		printf("%i", pAG->Pob[id].Cromosoma[i]);
 	}
 	printf("]  ");
-	ShowEntero(&pAG->Pob[id], pAG->NdGens);	
+	ShowEntero(&pAG->Pob[id], pAG->NdGens);
 	ShowReal(&pAG->Pob[id], pAG->NdGens);
 	printf(" VObj: %f", pAG->Pob[id].VObj);
 	printf(" Fit: %f", pAG->Pob[id].Fit);
@@ -309,7 +349,7 @@ void ShowIndividuo(AGS *pAG, unsigned int id){
 
 }
 
-AGS InicializarAGS(unsigned int PobSize, unsigned int NoGens, const unsigned int* BpG, const float *Lim_inf, const float *Lim_sup, const float ProbCruza, const float ProbMuta, unsigned int NumMaxGeneraciones){
+AGS InicializarAGS(unsigned int PobSize, unsigned int NoGens, const unsigned int* BpG, const float *Lim_inf, const float *Lim_sup, const float ProbCruza, const float ProbMuta, unsigned int MaxGeneraciones){
 	AGS ag;
 	unsigned int aux=0;
 	ag.PobSize = PobSize;
@@ -330,7 +370,9 @@ AGS InicializarAGS(unsigned int PobSize, unsigned int NoGens, const unsigned int
 	ag.limSup = Lim_sup;
 	ag.ProbCruza = ProbCruza;
 	ag.ProbMuta = ProbMuta;
+	ag.NumMaxGenerations = MaxGeneraciones;
 	//recorriendo la poblacion
+
 	for(int i=0; i<ag.PobSize; i++){
 		//Reservar memoria para la decodificacion a entero de cada individuo
 		ag.Pob[i].ValE = (int*)malloc(ag.NdGens * sizeof(int));
@@ -357,7 +399,7 @@ AGS InicializarAGS(unsigned int PobSize, unsigned int NoGens, const unsigned int
 			exit(0);
 		}
 	}
-	//Calcular el tamaño en bits del cromosoma
+	//Calcular el tama�o en bits del cromosoma
 	for(int i=0; i<ag.NdGens; i++){
 		aux += ag.NdBxGens[i];
 	}
@@ -383,14 +425,14 @@ AGS InicializarAGS(unsigned int PobSize, unsigned int NoGens, const unsigned int
 	}
 	for(int i = 0; i<ag.PobSize; i++)
 		ag.Pob[i].Fit = 0;
-	
+
 	//reservar memoria para el listado de individuos seleccionados
 	ag.Seleccion = (unsigned int *)malloc(ag.PobSize*sizeof(unsigned int));
 	if(ag.Seleccion==NULL){
 		printf("Error al reservar memoria para la seleccion\n");
 		exit(0);
 	}
-	
+
 	return ag;
 }
 
